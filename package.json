@@ -1,0 +1,23 @@
+{
+  "name": "database-proxy",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "tsc && node dist/index.js",
+    "build": "tsc",
+    "watch": "tsc -w && node dist/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^18.14.0",
+    "@types/ref-napi": "^3.0.7",
+    "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "ref-napi": "^3.0.3"
+  }
+}

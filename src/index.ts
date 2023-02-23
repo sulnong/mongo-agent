@@ -1,50 +1,112 @@
 import net from 'net'
 import ref from 'ref-napi'
+import bson from 'bson'
+
+class Base {
+  offset: number
+  constructor() {
+    this.offset = 0
+  }
+  // read a 32-bit integer from the buffer at the given offset
+  readInt32LE(data: Buffer) : number {
+    const value = data.readInt32LE(this.offset)
+    this.offset += 4
+    return value
+  }
+
+  // read a string (ends at '\n') from the buffer at the given offset
+  readCString(data: Buffer) {
+    const cstring = ref.readCString(data, this.offset)
+    this.offset += Buffer.byteLength(cstring, 'utf8') + 1
+    return cstring
+  }
+}
+
 /**
  * MongoDB Protocol - Message Header
  */
-class MsgHeader {
+class MsgHeader extends Base{
   messageLength: number
   requestID:number
   responseTo:number
   opCode: number
 
   constructor(msg: Buffer) {
-    this.messageLength = msg.readInt32LE(0)
-    this.requestID = msg.readInt32LE(4)
-    this.responseTo = msg.readInt32LE(8)
-    this.opCode = msg.readInt32LE(12)
+    super()
+    this.messageLength = this.readInt32LE(msg)
+    this.requestID = this.readInt32LE(msg)
+    this.responseTo = this.readInt32LE(msg)
+    this.opCode = this.readInt32LE(msg)
   }
 }
 
-class OpQuery {
-  offset: number
-  constructor(data: Buffer, offset: number) {
-    this.offset = offset
+/**
+ * MongoDB Protocol - OP_QUERY
+ * See https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op-query
+ * for more information.
+ */
+class OpQuery extends Base {
+  flags: number
+  numberToSkip: number
+  numberToReturn: number
+  returnCount: number
+  query: bson.Document[]
+  returnFieldsSelector: bson.Document[]
+  
+  constructor(data: Buffer) {
+    super()
+    this.flags = this.readInt32LE(data)
+    this.numberToSkip = this.readInt32LE(data)
+    this.numberToReturn = this.readInt32LE(data)
+    this.returnCount = this.numberToReturn
+    this.returnFieldsSelector = []
+    // bson deserialization
+    let docs: bson.Document[] = []
+    bson.deserializeStream(data, this.offset, 1, docs, this.numberToSkip, {})
+    this.query = docs
+    
+    // We're not finished yet, which implies the optional returnFieldsSelector is set.
+    if (this.offset < data.length) {
+      let fields: bson.Document[]  = []
+      bson.deserializeStream(data, this.offset, 1, fields, this.numberToSkip, {})
+      this.returnFieldsSelector = fields
+    }
+  }
+
+  toString() : String {
+    let result = ''
+    if (this.flags > 0) {
+      result += 'Flags: ' + this.flags + '\n'
+    }
+    if (this.query.length > 0) {
+      result += 'Query: ' + JSON.stringify(this.query) + '\n'
+    }
+    if (this.returnFieldsSelector) {
+      result += 'Return Fields: ' + JSON.stringify(this.returnFieldsSelector) + '\n'
+    }
+    return result
   }
 }
 
 class OpReply {
-  offset: number
-  constructor(data: Buffer, offset: number) {
-    this.offset = offset
+  constructor(data: Buffer) {
+    // TODO 
   }
 }
 
 class Msg {
   header: MsgHeader
-  offset: number
   constructor(data: Buffer) {
-    this.offset = 0
-    // header length is 16 bytes
+    // Parse header
     this.header = new MsgHeader(data)
-    this.offset += 16
+    // header length is 16 bytes, subarray to get the rest of the message
+    let bodyData = data.subarray(16)
     switch (this.header.opCode) {
       case 2004:
-        new OpQuery(data, this.offset)
+        new OpQuery(bodyData)
         break
       case 1:
-        new OpReply(data, this.offset)
+        new OpReply(bodyData)
         break
       default:
         throw new Error('Unimplemented opcode ' + this.header.opCode)
@@ -57,7 +119,7 @@ class Msg {
     const cstring = ref.readCString(data, offset)
     offset += Buffer.byteLength(cstring, 'utf8') + 1
     return cstring
-}
+  }
 }
 
 const server: net.Server = net.createServer((socket: net.Socket) => {
@@ -99,30 +161,6 @@ const server: net.Server = net.createServer((socket: net.Socket) => {
 
 })
 
-
-function parseMessage(msg: Buffer, identifier: string) {
-  const header = new MsgHeader(msg)
-  //Only opcodes 2004(QUERY) and 1(REPLY) are currently implemented.
-  //Though there are other opcodes, these are not used as frequently.
-  //This should cover a decent amount of data.
-  switch (header.opCode) {
-    case 2004:
-      var packet = new OpQuery(msg)
-      printFromAddress(identifier, packet.toString())
-      return packet
-    case 1:
-      var packet = new OpReply(msg)
-      printFromAddress(identifier, packet.toString())
-      return packet
-    default:
-      printFromAddress(identifier, 'Unimplemented opcode ' + header.opCode)
-      printFromAddress(
-        identifier,
-        'Raw packet (' + header.opCode + '): \n' + msg.toString()
-      )
-      return null
-  }
-}
 
 
 

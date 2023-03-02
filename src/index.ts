@@ -1,6 +1,8 @@
 import net from 'net'
 import ref from 'ref-napi'
 import bson from 'bson'
+import { EXTERNAL_PORT, MONGODB_HEADER_LENGTH, MONGODB_HOST, MONGODB_PORT } from './constants'
+
 
 class Base {
   offset: number
@@ -14,7 +16,9 @@ class Base {
     return value
   }
 
-  // read a string (ends at '\n') from the buffer at the given offset
+  // Returns a JavaScript String read from buffer at the given offset.
+  // The C String is read until the first NULL byte,
+  // which  indicates the end of the String.
   readCString(data: Buffer) {
     const cstring = ref.readCString(data, this.offset)
     this.offset += Buffer.byteLength(cstring, 'utf8') + 1
@@ -47,6 +51,7 @@ class MsgHeader extends Base{
  */
 class OpQuery extends Base {
   flags: number
+  collectionName: string
   numberToSkip: number
   numberToReturn: number
   returnCount: number
@@ -56,6 +61,7 @@ class OpQuery extends Base {
   constructor(data: Buffer) {
     super()
     this.flags = this.readInt32LE(data)
+    this.collectionName = this.readCString(data)
     this.numberToSkip = this.readInt32LE(data)
     this.numberToReturn = this.readInt32LE(data)
     this.returnCount = this.numberToReturn
@@ -64,7 +70,6 @@ class OpQuery extends Base {
     let docs: bson.Document[] = []
     bson.deserializeStream(data, this.offset, 1, docs, this.numberToSkip, {})
     this.query = docs
-    
     // We're not finished yet, which implies the optional returnFieldsSelector is set.
     if (this.offset < data.length) {
       let fields: bson.Document[]  = []
@@ -88,69 +93,62 @@ class OpQuery extends Base {
   }
 }
 
-class OpReply {
+class OpReply extends Base{
   constructor(data: Buffer) {
+    super()
     // TODO 
   }
 }
 
 class Msg {
   header: MsgHeader
+  packet: OpQuery | OpReply | null
   constructor(data: Buffer) {
     // Parse header
     this.header = new MsgHeader(data)
     // header length is 16 bytes, subarray to get the rest of the message
-    let bodyData = data.subarray(16)
+    let bodyData = data.subarray(MONGODB_HEADER_LENGTH)
     switch (this.header.opCode) {
       case 2004:
-        new OpQuery(bodyData)
+        this.packet = new OpQuery(bodyData)
         break
       case 1:
-        new OpReply(bodyData)
+        this.packet = new OpReply(bodyData)
         break
       default:
+        this.packet = null
         throw new Error('Unimplemented opcode ' + this.header.opCode)
     }
-  }
-  // Returns a JavaScript String read from buffer at the given offset.
-  // The C String is read until the first NULL byte,
-  // which  indicates the end of the String.
-  readCString(data: Buffer, offset: number) {
-    const cstring = ref.readCString(data, offset)
-    offset += Buffer.byteLength(cstring, 'utf8') + 1
-    return cstring
   }
 }
 
 const server: net.Server = net.createServer((socket: net.Socket) => {
   const clientId = socket.remoteAddress + ':' + socket.remotePort
-  const tag = '[' + clientId + '] '
-  console.log(clientId + ' connected.')
-  socket.on('data',(msg) => {
-    //console.log('<< From client to proxy ', msg.toString());
-    var serviceSocket = new net.Socket()
+  socket.on('data',(data) => {
+    const serviceSocket = new net.Socket()
     console.log(clientId + ' -> Server:')
-    var packet = parseMessage(msg, clientId)
+    const msg = new Msg(data)
+    const packet = msg.packet
     if (packet != null && packet instanceof OpQuery) {
-      console.log(packet.query.toString())
+      console.log(packet.toString())
       var fingerprint = ''
       if (packet.query && packet.query.length > 0 && packet.query[0].client) {
         fingerprint = packet.query[0].client
       }
       if (packet.query && packet.query.length > 0) {
-        printFromAddress(clientId, 'login', JSON.stringify(packet.query[0]))
+        // printFromAddress(clientId, 'login', JSON.stringify(packet.query[0]))
       } else {
-        printFromAddress(clientId, JSON.stringify(packet.query[0]))
+        // printFromAddress(clientId, JSON.stringify(packet.query[0]))
       }
     }
     serviceSocket.connect(MONGODB_PORT, MONGODB_HOST, function () {
-      serviceSocket.write(msg)
+      serviceSocket.write(data)
     })
     serviceSocket.on('data', function (data) {
       //console.log('<< From remote to proxy', data.toString());
       //console.log("Server -> " + clientId + ":");
-      parseMessage(data, clientId)
-      printToAddress(clientId, data)
+      const msg = new Msg(data)
+      // printToAddress(clientId, data)
       socket.write(data)
       //console.log('>> From proxy to client', data.toString());
     })
@@ -162,12 +160,10 @@ const server: net.Server = net.createServer((socket: net.Socket) => {
 })
 
 
-
-
 function printFromAddress(fromIp: string, data: string) {
   console.log('[' + fromIp + ' -> S] ' + data)
 }
 
-server.listen(8124, () => {
+server.listen(EXTERNAL_PORT, () => {
   console.log('server bound')
 })

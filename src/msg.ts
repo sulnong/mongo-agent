@@ -30,6 +30,7 @@ export class Msg {
     switch (this.header.opCode) {
       case 2013:
         this.packet = new OpMsg(bodyData)
+        break
       case 2004:
         this.packet = new OpQuery(bodyData)
         break

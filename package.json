@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "bson": "^5.0.1",
+    "mongodb": "^5.1.0",
     "ref-napi": "^3.0.3"
   }
 }

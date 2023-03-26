@@ -1,3 +1,28 @@
+const { MongoClient } = require('mongodb');
+// or as an es module:
+// import { MongoClient } from 'mongodb'
 
-const data = Buffer.from("633d626977732c723d692f774174694862533264516152636e556c45784b34394c3837666c654e516e72765a5a49724e53516e3648424e2b7559506161784b7545374d6f46586654322c703d61786c7a4d71564f6f77464c77645566375a3662423853447348782b777256554b6c6533457a576b565a513d", "hex")
-console.log(data.toString("utf-8"))
+// Connection URL
+const url = 'mongodb://root:password123@localhost:27016';
+const client = new MongoClient(url, { connectTimeoutMS: 3000 });
+
+// Database Name
+const dbName = 'myProject';
+
+async function main() {
+  // Use connect method to connect to the server
+  await client.connect();
+  console.log('Connected successfully to server');
+  const db = client.db(dbName);
+  const collection = db.collection('documents');
+
+  // the following code examples can be pasted here...
+  const findResult = await collection.find({}).toArray();
+console.log('Found documents =>', findResult);
+  return 'done.';
+}
+
+main()
+  .then(console.log)
+  .catch(console.error)
+  .finally(() => client.close());

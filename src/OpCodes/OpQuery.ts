@@ -28,7 +28,7 @@ export class OpQuery extends Base {
     let docs: bson.Document[] = []
     bson.deserializeStream(data, this.offset, 1, docs, this.numberToSkip, {})
     this.query = docs
-    console.log('query', this.query)
+    // console.log('query', this.query)
     // We're not finished yet, which implies the optional returnFieldsSelector is set.
     if (this.offset < data.length) {
       let fields: bson.Document[] = []

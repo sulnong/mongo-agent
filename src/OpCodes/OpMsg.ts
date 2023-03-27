@@ -32,8 +32,8 @@ export class OpMsg extends Base {
   sections: any[]
   constructor(data: Buffer) {
     super()
+    this.logger = this.logger.scope('OpMsg')
     this.flagBits = this.readUInt32LE(data)
-    console.log('Flags bit: ', this.flagBits)
     this.sections = []
     const kind = this.readUInt8(data)
     /**
@@ -86,14 +86,14 @@ export class OpMsg extends Base {
   singleBsonObjectParser(doc: bson.Document) {
     // heart beat message
     if (doc.hasOwnProperty('ismaster') && doc.ismaster === 1) {
-      console.log('Heart beat message')
+      this.logger.debug('Heart beat message')
       return
     }
     // query message
     if (doc.hasOwnProperty('$db')) {
-      console.log('Query message: ', doc)
+      this.logger.debug('Query message: ', doc)
       return
     }
-    console.log('Unknown message: ', doc)
+    this.logger.debug('Un-Category message: ', doc)
   }
 }

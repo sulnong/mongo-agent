@@ -17,7 +17,7 @@ export class OpQuery extends Base {
 
   constructor(data: Buffer) {
     super()
-    console.log('Start read OpQuery...')
+    this.logger = this.logger.scope('OpQuery')
     this.flags = this.readInt32LE(data)
     this.collectionName = this.readCString(data)
     this.numberToSkip = this.readInt32LE(data)
@@ -28,7 +28,7 @@ export class OpQuery extends Base {
     let docs: bson.Document[] = []
     bson.deserializeStream(data, this.offset, 1, docs, this.numberToSkip, {})
     this.query = docs
-    // console.log('query', this.query)
+    this.logger.debug(docs[0])
     // We're not finished yet, which implies the optional returnFieldsSelector is set.
     if (this.offset < data.length) {
       let fields: bson.Document[] = []
@@ -55,6 +55,9 @@ export class OpQuery extends Base {
     if (this.returnFieldsSelector) {
       result +=
         'Return Fields: ' + JSON.stringify(this.returnFieldsSelector) + '\n'
+    }
+    if (this.collectionName) {
+      result += 'Collection: ' + this.collectionName + '\n'
     }
     return result
   }

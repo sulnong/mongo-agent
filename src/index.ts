@@ -2,22 +2,31 @@ import net from 'net'
 import { now } from './utils'
 import { Msg } from './msg'
 import { EXTERNAL_PORT, MONGODB_HOST, MONGODB_PORT } from './constants'
+import { Signale } from 'signale'
+
+const logger = new Signale({
+  scope: 'Agent',
+  config: { displayTimestamp: true },
+})
+
+const client2Agent = logger.scope('client2Agent')
+const agent2Client = logger.scope('agent2Client')
 
 const server: net.Server = net.createServer((socket: net.Socket) => {
   // 连接数据库
   const dbClient = net.connect(MONGODB_PORT, MONGODB_HOST, () => {
-    console.log(now(), ': db client connected.')
+    logger.info('Agent has connected to mongodb')
   })
   // 监听数据库返回的数据
   dbClient.on('data', function (data) {
-    console.log(now(), '< < < < < < ====== < < < < < <')
+    agent2Client.debug('< < < < < < ====== < < < < < <: ')
     const msg = new Msg(data)
     socket.write(data)
   })
   // 监听客户端发来的数据
   const clientId = socket.remoteAddress + ':' + socket.remotePort
   socket.on('data', (data) => {
-    console.log(now(), '> > > > > > > ====== > > > > > >')
+    client2Agent.debug('> > > > > > ====== > > > > > >: ', data.toString())
     const msg = new Msg(data)
     dbClient.write(data)
   })
@@ -28,6 +37,14 @@ const server: net.Server = net.createServer((socket: net.Socket) => {
   // 监听客户端断开连接
   socket.on('close', function () {
     console.log(now(), ': client disconnected.')
+  })
+  // 监听客户端连接错误
+  socket.on('error', function (err) {
+    console.log(now(), ': client error: ' + err)
+  })
+  // 监听数据库连接错误
+  dbClient.on('error', function (err) {
+    console.log(now(), ': dbClient error: ' + err)
   })
 })
 

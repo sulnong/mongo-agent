@@ -1,5 +1,5 @@
 const net = require('net');
-// const ref = require('ref')
+const ref = require('ref-napi')
 const fs = require('fs');
 const bson = require('bson');
 const parseArgs = require('minimist');
@@ -75,7 +75,7 @@ var server = net.createServer(function (socket) {
             parseMessage(data, clientId);
             printToAddress(clientId, data);
             socket.write(data);
-            //console.log('>> From proxy to client', data.toString());
+            console.log('>> From proxy to client', data.toString());
         });
     });
     socket.on('close', function() {
@@ -161,8 +161,8 @@ function OpQuery(data) {
 }
 
 function readCString(data) {
-    // var cstring = data.readCString(data, offset);
-    var cstring = Buffer.from(data, 'utf-8')
+    var cstring = ref.readCString(data, offset);
+    // var cstring = Buffer.from(data, 'utf-8')
     // var cstring = new Buffer(data, offset)
     console.log(cstring);
     offset += Buffer.byteLength(cstring, 'utf8') + 1;

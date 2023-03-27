@@ -38,6 +38,7 @@ export class Msg {
         this.packet = new OpReply(bodyData)
         break
       default:
+        console.log('Unimplemented opcode ' + this.header.opCode)
         this.packet = null
         throw new Error('Unimplemented opcode ' + this.header.opCode)
     }

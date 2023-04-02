@@ -3,8 +3,8 @@ const { MongoClient } = require('mongodb');
 // import { MongoClient } from 'mongodb'
 
 // Connection URL
-// const url = 'mongodb://root:password123@localhost:27016/?authSource=admin&directConnection=true';
-const url = 'mongodb://root:password1232@localhost:27016/';
+const url = 'mongodb://root:password123@localhost:27016/sys_db?authSource=admin&directConnection=true';
+// const url = 'mongodb://root:password123@localhost:27016/';
 const client = new MongoClient(url, { connectTimeoutMS: 3000 });
 
 // Database Name

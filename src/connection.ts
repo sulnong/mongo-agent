@@ -97,7 +97,56 @@ function generateNonce(length = 24) {
 function generateSaltedPassword(username, password, salt, iterations) {
   let result = new Uint8Array(hashSha256(${ username }: mongo: ${ password }));
   let u = new Uint8Array(result.length + salt.length + 4);
-  u.set(result,)
+  u.set(salt, result.length);
+  const saltedPassword = pbkdf2Sha256(u, iterations, salt.length);
+  return saltedPassword;
+}
+
+function pbkdf2Sha256(password, iterations, keylen) {
+  return crypto.pbkdf2Sync(password, '', iterations, keylen, 'sha256');
+}
+
+function hmacSha256(key, data) {
+  return crypto.createHmac('sha256', key).update(data).digest();
+}
+
+function hashSha256(data) {
+  return crypto.createHash('sha256').update(data).digest();
+}
+
+function flattenAuthProperties() {
+  return `n=${saslPrep(MONGODB_USERNAME)},r=${clientNonce}`;
+}
+
+function saslPrep(str) {
+  // 这里可以实现 SASLprep 算法进行字符串规范化
+  return str;
+}
+
+function xorHex(a, b) {
+  if (a.length !== b.length) {
+    throw new Error('Input strings must have the same length');
+  }
+  let result = '';
+  for (let i = 0; i < a.length; i += 2) {
+    const x = parseInt(a.substr(i, 2), 16);
+    const y = parseInt(b.substr(i, 2), 16);
+    const z = x ^ y;
+    result += ('00' + z.toString(16)).substr(-2);
+  }
+  return result;
+}
+
+function buildCommandMessage(opCode, payload) {
+  const commandLength = 16 + Buffer.byteLength(JSON.stringify(payload));
+  const requestId = crypto.randomBytes(4).readUInt32LE();
+  const message = Buffer.alloc(commandLength);
+  message.writeInt32LE(commandLength, 0);
+  message.writeInt32LE(requestId, 4);
+  message.writeInt32LE(0, 8); // ResponseTo（0）
+  message.writeInt32LE(opCode, 12);
+  message.write(JSON.stringify(payload), 16);
+  return message;
 }
 
 getDbConnection()
